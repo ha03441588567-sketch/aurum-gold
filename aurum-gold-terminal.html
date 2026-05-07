@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURUM — XAU/USD Gold Terminal</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #FFD700; --gold2: #FFA500; --pink: #FF2D6B;
+    --bg: #0a0008; --bg2: #110010; --card: #150013;
+    --border: #3a0035; --text: #e0c0e0; --dim: #6a4a6a;
+    --green: #00FF88; --red: #FF3366;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Share Tech Mono',monospace; min-height:100vh; overflow-x:hidden; }
+  body::before { content:''; position:fixed; top:0;left:0;right:0;bottom:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.06) 2px,rgba(0,0,0,0.06) 4px); pointer-events:none; z-index:9999; }
+
+  .header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--border); background:var(--bg2); flex-wrap:wrap; gap:8px; }
+  .logo { font-family:'Orbitron',sans-serif; font-size:28px; font-weight:900; color:var(--gold); letter-spacing:4px; text-shadow:0 0 20px rgba(255,215,0,0.5); }
+  .header-info { display:flex; flex-direction:column; font-size:9px; color:var(--dim); letter-spacing:2px; }
+  .header-right { display:flex; align-items:center; gap:10px; }
+  .status-dot { width:8px;height:8px;border-radius:50%;background:var(--red);animation:blink 1s infinite; }
+  .status-dot.live { background:var(--green);animation:none; }
+  .status-dot.conn { background:var(--gold);animation:blink 0.4s infinite; }
+  @keyframes blink { 0%,100%{opacity:1}50%{opacity:0.2} }
+  .status-text { font-size:10px;letter-spacing:2px;color:var(--red); }
+  .status-text.live { color:var(--green); }
+  .status-text.conn { color:var(--gold); }
+  .retry-info { font-size:10px;color:var(--dim);display:none; }
+  .btn { font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:2px;padding:10px 18px;border:2px solid var(--pink);background:transparent;color:var(--pink);cursor:pointer;transition:all 0.2s; }
+  .btn:hover { background:var(--pink);color:#fff; }
+  .btn.stop { border-color:var(--red);color:var(--red); }
+  .btn.stop:hover { background:var(--red);color:#fff; }
+
+  .stats-bar { display:flex;gap:20px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap; }
+  .stat-item { display:flex;flex-direction:column;gap:3px; }
+  .stat-label { font-size:8px;letter-spacing:2px;color:var(--dim); }
+  .stat-value { font-size:18px;font-family:'Orbitron',sans-serif;color:var(--gold); }
+  .stat-value.up{color:var(--green)}.stat-value.down{color:var(--red)}.stat-value.empty{color:var(--dim);font-size:14px;}
+
+  .main-section { padding:16px;border-bottom:1px solid var(--border); }
+  .section-label { font-size:8px;letter-spacing:3px;color:var(--dim);margin-bottom:10px; }
+  .big-price { font-family:'Orbitron',sans-serif;font-size:clamp(30px,9vw,62px);font-weight:900;color:var(--gold);text-shadow:0 0 40px rgba(255,215,0,0.4);letter-spacing:2px; }
+  .big-price.idle { font-size:clamp(16px,5vw,30px);color:var(--dim);animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:0.4}50%{opacity:1} }
+  .source-badge { font-size:8px;letter-spacing:1px;color:var(--dim);margin-top:3px; }
+
+  .range-bar { margin-top:14px;display:none; }
+  .range-labels { display:flex;justify-content:space-between;font-size:8px;letter-spacing:2px;color:var(--dim);margin-bottom:5px; }
+  .range-track { height:3px;background:var(--border);position:relative;border-radius:2px; }
+  .range-fill { height:100%;background:linear-gradient(90deg,var(--gold2),var(--gold));border-radius:2px;transition:width 1s; }
+  .range-thumb { position:absolute;top:-4px;width:11px;height:11px;background:var(--gold);border-radius:50%;transform:translateX(-50%);box-shadow:0 0 10px var(--gold);transition:left 1s; }
+
+  .error-box { margin:10px 16px;padding:10px 14px;border:1px solid var(--gold2);color:var(--gold2);font-size:11px;letter-spacing:1px;display:none; }
+
+  .tabs { display:flex;border-bottom:1px solid var(--border);padding:0 16px;gap:20px; }
+  .tab { font-size:10px;letter-spacing:2px;color:var(--dim);padding:10px 0;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s; }
+  .tab.active { color:var(--pink);border-bottom-color:var(--pink); }
+  .tab-content { display:none;padding:16px; }
+  .tab-content.active { display:block; }
+
+  .chart-hdr { display:flex;gap:14px;font-size:8px;letter-spacing:2px;color:var(--dim);margin-bottom:10px; }
+  .chart-area { background:var(--card);border:1px solid var(--border);height:190px;position:relative;overflow:hidden; }
+  canvas#priceChart { width:100%!important;height:100%!important; }
+  .chart-ph { position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:10px;letter-spacing:3px;color:var(--dim);text-align:center; }
+
+  .cards { display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px; }
+  .card { background:var(--card);border:1px solid var(--border);padding:12px; }
+  .card-label { font-size:7px;letter-spacing:2px;color:var(--dim);margin-bottom:6px; }
+  .card-val { font-family:'Orbitron',sans-serif;font-size:15px;color:var(--gold); }
+  .card-val.up{color:var(--green)}.card-val.down{color:var(--red)}.card-val.empty{color:var(--dim);font-size:13px;}
+
+  .alert-form { display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap; }
+  .alert-inp { flex:1;min-width:110px;background:var(--card);border:1px solid var(--border);color:var(--gold);font-family:'Share Tech Mono',monospace;font-size:14px;padding:9px 12px;outline:none; }
+  .alert-inp:focus{border-color:var(--gold)}.alert-inp::placeholder{color:var(--dim);}
+  .alert-sel { background:var(--card);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;padding:9px 12px;outline:none; }
+  .alert-list{display:flex;flex-direction:column;gap:6px;}
+  .alert-item { display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--border);padding:9px 12px;font-size:11px; }
+  .alert-item.fired{border-color:var(--pink);color:var(--pink);}
+  .alert-del{background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;}
+
+  .log-list{display:flex;flex-direction:column;gap:3px;max-height:280px;overflow-y:auto;}
+  .log-entry{font-size:10px;letter-spacing:1px;color:var(--dim);padding:3px 0;border-bottom:1px solid rgba(58,0,53,0.3);}
+  .log-entry .lt{color:var(--gold2);margin-right:8px;}
+  .log-entry.err{color:var(--red)}.log-entry.ok{color:var(--green)}
+
+  .notif{position:fixed;top:16px;right:16px;background:var(--bg2);border:1px solid var(--pink);color:var(--pink);padding:10px 16px;font-size:12px;letter-spacing:1px;z-index:10000;display:none;max-width:280px;}
+  ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border)}
+</style>
+</head>
+<body>
+
+<div class="notif" id="notif"></div>
+
+<div class="header">
+  <div style="display:flex;align-items:center;gap:14px;">
+    <div class="logo">AURUM</div>
+    <div class="header-info"><span>XAU / USD</span><span>GOLD SPOT TRACKER</span></div>
+  </div>
+  <div class="header-right">
+    <div class="retry-info" id="retryInfo"></div>
+    <div class="status-dot" id="sDot"></div>
+    <div class="status-text" id="sTxt">OFFLINE</div>
+    <button class="btn" id="mainBtn" onclick="toggle()">▶ START</button>
+  </div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat-item"><div class="stat-label">SPOT</div><div class="stat-value empty" id="sSpot">—</div></div>
+  <div class="stat-item"><div class="stat-label">CHG</div><div class="stat-value empty" id="sChg">—</div></div>
+  <div class="stat-item"><div class="stat-label">CHG%</div><div class="stat-value empty" id="sChgP">—</div></div>
+  <div class="stat-item"><div class="stat-label">HI</div><div class="stat-value empty" id="sHi">—</div></div>
+  <div class="stat-item"><div class="stat-label">LO</div><div class="stat-value empty" id="sLo">—</div></div>
+</div>
+
+<div class="main-section">
+  <div class="section-label">GOLD SPOT — USD PER TROY OUNCE</div>
+  <div class="big-price idle" id="bigP">PRESS START</div>
+  <div class="source-badge" id="srcBadge"></div>
+  <div class="range-bar" id="rangeBar">
+    <div class="range-labels"><span id="rLo">LO —</span><span style="font-size:8px;letter-spacing:2px;">— SESSION RANGE —</span><span id="rHi">HI —</span></div>
+    <div class="range-track"><div class="range-fill" id="rFill" style="width:50%"></div><div class="range-thumb" id="rThumb" style="left:50%"></div></div>
+  </div>
+</div>
+
+<div class="error-box" id="errBox">⚠ <span id="errMsg"></span></div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('chart',this)">CHART</div>
+  <div class="tab" onclick="showTab('alerts',this)">ALERTS</div>
+  <div class="tab" onclick="showTab('log',this)">LOG</div>
+  <div class="tab" onclick="showTab('stats',this)">STATS</div>
+</div>
+
+<div class="tab-content active" id="tab-chart">
+  <div class="chart-hdr"><span>PRICE CHART</span><span id="cPts">0 POINTS</span><span>15s INTERVAL</span></div>
+  <div class="chart-area"><canvas id="priceChart"></canvas><div class="chart-ph" id="chartPH">FETCHING FIRST PRICE...</div></div>
+  <div class="cards">
+    <div class="card"><div class="card-label">OPEN PRICE</div><div class="card-val empty" id="cOpen">—</div></div>
+    <div class="card"><div class="card-label">PREV FETCH</div><div class="card-val empty" id="cPrev">—</div></div>
+  </div>
+</div>
+
+<div class="tab-content" id="tab-alerts">
+  <div class="alert-form">
+    <input class="alert-inp" id="aPrice" type="number" placeholder="e.g. 3300" />
+    <select class="alert-sel" id="aType"><option value="above">ABOVE ↑</option><option value="below">BELOW ↓</option></select>
+    <button class="btn" onclick="addAlert()">+ ADD</button>
+  </div>
+  <div class="alert-list" id="aList"><div style="font-size:10px;color:var(--dim);letter-spacing:2px;">NO ALERTS SET</div></div>
+</div>
+
+<div class="tab-content" id="tab-log">
+  <div class="log-list" id="logList"><div style="font-size:10px;color:var(--dim);letter-spacing:2px;">LOG EMPTY</div></div>
+</div>
+
+<div class="tab-content" id="tab-stats">
+  <div class="cards">
+    <div class="card"><div class="card-label">SESSION HIGH</div><div class="card-val empty" id="cHi">—</div></div>
+    <div class="card"><div class="card-label">SESSION LOW</div><div class="card-val empty" id="cLo">—</div></div>
+    <div class="card"><div class="card-label">NET CHANGE</div><div class="card-val empty" id="cNet">—</div></div>
+    <div class="card"><div class="card-label">CHANGE %</div><div class="card-val empty" id="cChgP">—</div></div>
+    <div class="card"><div class="card-label">ACTIVE ALERTS</div><div class="card-val" id="cAl" style="color:var(--gold)">0</div></div>
+    <div class="card"><div class="card-label">LOG RECORDS</div><div class="card-val" id="cLg" style="color:var(--gold)">0</div></div>
+  </div>
+</div>
+
+<script>
+let running=false, tickInterval=null, retryTimer=null, retryCount=0;
+let prices=[], openPrice=null, sessionHi=null, sessionLo=null, prevPrice=null;
+let alerts=[], logs=[], ctx=null;
+
+function g(id){return document.getElementById(id);}
+
+// ── FETCH GOLD PRICE ──────────────────────────────────────────
+// Strategy: try 3 CORS-open sources in order
+async function fetchPrice() {
+
+  // 1. GoldPrice.org — most reliable, always CORS open
+  try {
+    const r = await fetch('https://data-asg.goldprice.org/dbXRates/USD',{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    if(d?.items?.[0]?.xauPrice){
+      g('srcBadge').textContent='SOURCE: GOLDPRICE.ORG';
+      return +d.items[0].xauPrice;
+    }
+    throw new Error('no xauPrice');
+  } catch(e){ log('GoldPrice.org: '+e.message,'err'); }
+
+  // 2. open.er-api.com — free, no key, CORS open, returns XAU rates
+  try {
+    const r = await fetch('https://open.er-api.com/v6/latest/XAU',{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    if(d?.rates?.USD){
+      g('srcBadge').textContent='SOURCE: ER-API.COM';
+      // XAU base: d.rates.USD = how many USD = 1 oz gold
+      return +d.rates.USD.toFixed(2);
+    }
+    throw new Error('no USD rate');
+  } catch(e){ log('ER-API: '+e.message,'err'); }
+
+  // 3. allorigins proxy → metals.live
+  try {
+    const proxy = 'https://api.allorigins.win/get?url='+encodeURIComponent('https://api.metals.live/v1/spot/gold');
+    const r = await fetch(proxy,{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const w = await r.json();
+    const d = JSON.parse(w.contents);
+    if(Array.isArray(d) && d[0]?.gold){
+      g('srcBadge').textContent='SOURCE: METALS.LIVE';
+      return +d[0].gold;
+    }
+    throw new Error('no gold field');
+  } catch(e){ log('Metals proxy: '+e.message,'err'); }
+
+  throw new Error('All 3 sources failed');
+}
+
+// ── UPDATE UI ─────────────────────────────────────────────────
+function updateUI(p) {
+  g('bigP').textContent='$'+p.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  g('bigP').classList.remove('idle');
+
+  if(!openPrice){ openPrice=p; g('cOpen').textContent='$'+p.toFixed(2); g('cOpen').classList.remove('empty'); }
+  if(sessionHi===null||p>sessionHi){ sessionHi=p; g('sHi').textContent=p.toFixed(2); g('sHi').classList.remove('empty'); g('cHi').textContent='$'+p.toFixed(2); g('cHi').classList.remove('empty'); g('rHi').textContent='HI '+p.toFixed(2); }
+  if(sessionLo===null||p<sessionLo){ sessionLo=p; g('sLo').textContent=p.toFixed(2); g('sLo').classList.remove('empty'); g('cLo').textContent='$'+p.toFixed(2); g('cLo').classList.remove('empty'); g('rLo').textContent='LO '+p.toFixed(2); }
+
+  g('sSpot').textContent=p.toFixed(2); g('sSpot').classList.remove('empty');
+
+  if(openPrice){
+    const chg=p-openPrice, pct=(chg/openPrice)*100, cls=chg>=0?'up':'down', sgn=chg>=0?'+':'';
+    g('sChg').textContent=sgn+chg.toFixed(2); g('sChg').className='stat-value '+cls;
+    g('sChgP').textContent=sgn+pct.toFixed(3)+'%'; g('sChgP').className='stat-value '+cls;
+    g('cNet').textContent=sgn+chg.toFixed(2); g('cNet').className='card-val '+cls;
+    g('cChgP').textContent=sgn+pct.toFixed(3)+'%'; g('cChgP').className='card-val '+cls;
+  }
+
+  if(prevPrice!==null){ g('cPrev').textContent='$'+prevPrice.toFixed(2); g('cPrev').classList.remove('empty'); }
+
+  if(sessionHi!==null&&sessionLo!==null&&sessionHi!==sessionLo){
+    g('rangeBar').style.display='block';
+    const pct=((p-sessionLo)/(sessionHi-sessionLo))*100;
+    g('rFill').style.width=pct+'%'; g('rThumb').style.left=pct+'%';
+  }
+
+  prices.push(p); if(prices.length>80) prices.shift();
+  g('cPts').textContent=prices.length+' POINTS';
+  if(prices.length>1){ g('chartPH').style.display='none'; drawChart(); }
+  prevPrice=p;
+  checkAlerts(p);
+}
+
+// ── CHART ────────────────────────────────────────────────────
+function initChart(){
+  const c=document.getElementById('priceChart');
+  ctx=c.getContext('2d'); c.width=c.offsetWidth; c.height=c.offsetHeight;
+}
+function drawChart(){
+  if(!ctx||prices.length<2) return;
+  const c=document.getElementById('priceChart'); c.width=c.offsetWidth; c.height=c.offsetHeight;
+  const w=c.width,h=c.height,pad=28;
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle='rgba(58,0,53,0.5)'; ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=pad+(h-2*pad)*i/4;ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(w-pad,y);ctx.stroke();}
+  const mn=Math.min(...prices)-0.5,mx=Math.max(...prices)+0.5,rng=mx-mn||1;
+  const gx=i=>pad+(i/(prices.length-1))*(w-2*pad);
+  const gy=p=>h-pad-((p-mn)/rng)*(h-2*pad);
+  const gr=ctx.createLinearGradient(0,pad,0,h-pad);
+  gr.addColorStop(0,'rgba(255,215,0,0.18)'); gr.addColorStop(1,'rgba(255,215,0,0)');
+  ctx.beginPath(); ctx.moveTo(gx(0),gy(prices[0]));
+  prices.forEach((p,i)=>{if(i>0)ctx.lineTo(gx(i),gy(p));});
+  ctx.lineTo(gx(prices.length-1),h-pad); ctx.lineTo(gx(0),h-pad);
+  ctx.fillStyle=gr; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(gx(0),gy(prices[0]));
+  prices.forEach((p,i)=>{if(i>0)ctx.lineTo(gx(i),gy(p));});
+  ctx.strokeStyle='#FFD700'; ctx.lineWidth=2; ctx.stroke();
+  const lx=gx(prices.length-1),ly=gy(prices[prices.length-1]);
+  ctx.beginPath(); ctx.arc(lx,ly,5,0,Math.PI*2); ctx.fillStyle='#FFD700'; ctx.fill();
+  ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.fillStyle='rgba(106,74,106,0.9)'; ctx.font='8px Share Tech Mono';
+  ctx.fillText(mx.toFixed(1),2,pad+6); ctx.fillText(mn.toFixed(1),2,h-pad-2);
+}
+
+// ── ALERTS ───────────────────────────────────────────────────
+function addAlert(){
+  const p=parseFloat(g('aPrice').value),t=g('aType').value;
+  if(!p||isNaN(p)){notif('⚠ Enter a valid price!');return;}
+  alerts.push({id:Date.now(),price:p,type:t,fired:false});
+  g('aPrice').value=''; renderAlerts(); counts(); log('Alert: '+t.toUpperCase()+' $'+p.toFixed(2),'ok');
+}
+function removeAlert(id){ alerts=alerts.filter(a=>a.id!==id); renderAlerts(); counts(); }
+function checkAlerts(p){
+  alerts.forEach(a=>{
+    if(a.fired)return;
+    if((a.type==='above'&&p>=a.price)||(a.type==='below'&&p<=a.price)){
+      a.fired=true; renderAlerts();
+      notif('🔔 ALERT! '+a.type.toUpperCase()+' $'+a.price.toFixed(2)+' — Now: $'+p.toFixed(2));
+      log('ALERT FIRED: '+a.type.toUpperCase()+' $'+a.price.toFixed(2),'ok');
+    }
+  });
+}
+function renderAlerts(){
+  const el=g('aList');
+  if(!alerts.length){el.innerHTML='<div style="font-size:10px;color:var(--dim);letter-spacing:2px;">NO ALERTS SET</div>';return;}
+  el.innerHTML=alerts.map(a=>`<div class="alert-item ${a.fired?'fired':''}"><span>${a.type.toUpperCase()} $${a.price.toFixed(2)}${a.fired?' ✓ FIRED':''}</span><button class="alert-del" onclick="removeAlert(${a.id})">✕</button></div>`).join('');
+}
+
+// ── LOG ──────────────────────────────────────────────────────
+function log(msg,type=''){
+  const t=new Date().toLocaleTimeString('en-US',{hour12:false});
+  logs.unshift({t,msg,type}); if(logs.length>60)logs.pop(); renderLog(); counts();
+}
+function renderLog(){
+  const el=g('logList');
+  if(!logs.length){el.innerHTML='<div style="font-size:10px;color:var(--dim);letter-spacing:2px;">LOG EMPTY</div>';return;}
+  el.innerHTML=logs.map(l=>`<div class="log-entry ${l.type}"><span class="lt">[${l.t}]</span>${l.msg}</div>`).join('');
+}
+function counts(){ g('cAl').textContent=alerts.length; g('cLg').textContent=logs.length; }
+
+// ── NOTIF / ERROR ────────────────────────────────────────────
+function notif(msg){const el=g('notif');el.textContent=msg;el.style.display='block';setTimeout(()=>el.style.display='none',4500);}
+function showErr(msg){g('errMsg').textContent=msg;g('errBox').style.display='block';}
+function hideErr(){g('errBox').style.display='none';}
+
+// ── STATUS ───────────────────────────────────────────────────
+function setStatus(s,t){
+  g('sDot').className='status-dot'+(s==='live'?' live':s==='conn'?' conn':'');
+  g('sTxt').className='status-text'+(s==='live'?' live':s==='conn'?' conn':'');
+  g('sTxt').textContent=t;
+}
+
+// ── FETCH LOOP ───────────────────────────────────────────────
+async function doFetch(){
+  g('retryInfo').style.display='none';
+  setStatus('conn','FETCHING...');
+  try {
+    const p=await fetchPrice();
+    retryCount=0; hideErr(); setStatus('live','LIVE');
+    log('✓ $'+p.toFixed(2),'ok'); updateUI(p);
+  } catch(e) {
+    retryCount++;
+    const wait=Math.min(retryCount*8,60);
+    showErr('Fetch failed — retrying in '+wait+'s (attempt '+retryCount+')');
+    setStatus('','ERROR'); log('✗ '+e.message,'err');
+    let t=wait; const ri=g('retryInfo'); ri.style.display='block'; ri.textContent='T-'+t+'s';
+    const cd=setInterval(()=>{t--;ri.textContent='T-'+t+'s';if(t<=0)clearInterval(cd);},1000);
+    clearTimeout(retryTimer); retryTimer=setTimeout(doFetch,wait*1000);
+  }
+}
+
+// ── TOGGLE ───────────────────────────────────────────────────
+function toggle(){
+  if(!running){
+    running=true; g('mainBtn').textContent='■ STOP'; g('mainBtn').className='btn stop';
+    log('Tracker started','ok'); doFetch(); tickInterval=setInterval(doFetch,15000);
+  } else {
+    running=false; clearInterval(tickInterval); clearTimeout(retryTimer);
+    g('mainBtn').textContent='▶ START'; g('mainBtn').className='btn';
+    setStatus('','OFFLINE'); g('retryInfo').style.display='none'; hideErr(); log('Tracker stopped');
+  }
+}
+
+// ── TABS ─────────────────────────────────────────────────────
+function showTab(name,el){
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  g('tab-'+name).classList.add('active'); el.classList.add('active');
+  if(name==='chart') setTimeout(drawChart,50);
+}
+
+// ── INIT ─────────────────────────────────────────────────────
+window.addEventListener('load',()=>{
+  initChart(); log('AURUM ready','ok');
+  window.addEventListener('resize',()=>{initChart();drawChart();});
+});
+</script>
+</body>
+</html>
