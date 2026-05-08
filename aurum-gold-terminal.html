@@ -177,7 +177,7 @@ function g(id){return document.getElementById(id);}
 // Strategy: try 3 CORS-open sources in order
   async function fetchPrice() {
   try {
-    const r = await fetch('https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD',{cache:'no-store'});
+    const r = await fetch('https://api.allorigins.win/raw?url='+encodeURLComponent('http://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD'),{cache:'no-store'});
 if(!r.ok) throw new Error('HTTP '+r.status);
 const d = await r.json();
 if(d[0]?.spreadProfilePrices){
