@@ -176,7 +176,20 @@ function g(id){return document.getElementById(id);}
 // ── FETCH GOLD PRICE ──────────────────────────────────────────
 // Strategy: try 3 CORS-open sources in order
 async function fetchPrice() {
-
+// 0. GoldAPI.io — primary source
+  try {
+    const r = await fetch('https://www.goldapi.io/api/XAU/USD', {
+      headers: { 'x-access-token': 'goldapi-24e42ee0c6b86fe80b45b5046cd5dc16-io'},
+      cache: 'no-store'
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    if(d?.price) {
+      g('srcBadge').textContent = 'SOURCE: GOLDAPI.IO';
+      return +d.price;
+    }
+    throw new Error('no price');
+  } catch(e){ log('GoldAPI: '+e.message,'err'); }
   // 1. GoldPrice.org — most reliable, always CORS open
   try {
     const r = await fetch('https://data-asg.goldprice.org/dbXRates/USD',{cache:'no-store'});
