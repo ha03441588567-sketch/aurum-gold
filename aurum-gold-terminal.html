@@ -175,21 +175,31 @@ function g(id){return document.getElementById(id);}
 
 // ── FETCH GOLD PRICE ──────────────────────────────────────────
 // Strategy: try 3 CORS-open sources in order
-async function fetchPrice() {
-// 0. GoldAPI.io — primary source
+  async function fetchPrice() {
   try {
-    const r = await fetch('https://www.goldapi.io/api/XAU/USD', {
-      headers: { 'x-access-token': 'goldapi-24e42ee0c6b86fe80b45b5046cd5dc16-io'},
-      cache: 'no-store'
-    });
+    const r = await fetch('https://api.metals.live/v1/spot/gold',{cache:'no-store'});
     if(!r.ok) throw new Error('HTTP '+r.status);
     const d = await r.json();
-    if(d?.price) {
-      g('srcBadge').textContent = 'SOURCE: GOLDAPI.IO';
-      return +d.price;
+    if(Array.isArray(d) && d[0]?.gold){
+      g('srcBadge').textContent='SOURCE: METALS.LIVE';
+      return +d[0].gold;
     }
-    throw new Error('no price');
-  } catch(e){ log('GoldAPI: '+e.message,'err'); }
+    throw new Error('no gold field');
+  } catch(e){ log('Metals: '+e.message,'err'); }
+
+  try {
+    const r = await fetch('https://open.er-api.com/v6/latest/XAU',{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    if(d?.rates?.USD){
+      g('srcBadge').textContent='SOURCE: ER-API';
+      return +d.rates.USD.toFixed(2);
+    }
+    throw new Error('no rate');
+  } catch(e){ log('ER-API: '+e.message,'err'); }
+
+  throw new Error('All sources failed');
+}
   // 1. GoldPrice.org — most reliable, always CORS open
   try {
     const r = await fetch('https://data-asg.goldprice.org/dbXRates/USD',{cache:'no-store'});
